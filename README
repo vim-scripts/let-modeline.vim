@@ -1,0 +1,17 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=83
+
+The file defines the function FirstModeLine().
+
+Its purpose is very simple. It consists in extending VIM modelines (:h modeline for more info) to custom variables -- these variables can then be used to customize other VIM scripts.
+
+For instance, if your file foo.vim has as one of its first or last lines:
+   " VIM: let b:toto="foo" g:tata=4 g:egal="t=y".&tw $CPPFLAG='-I../../libs'
+Then, once the buffer is (re)loaded, one buffer relative variable (b:toto) and two global variables (g:tata and g:egal) are defined to the value specified after the equal sign.
+
+Personnaly, I use it in conjunction with tex-tools.vim in order to know the name of the main file of the current document and then call latex on the main file and not on the currently edited file -- I use intensively \\include{} and \\includeonly{}.
+
+Regarding the security issue, the script forbids calls to functions in the right hand operand -- it prevents from trojans. Nevertheless, it is possible to call functions thanks to a buffer relative callback feature. This time, only one function could be called. Trojans are still possible if the callback functions (that you have accepted in your configuration) want it to be possible -- like calling a function named after the value passed in parameter... 
+The callback feature has been implemented to be used in conjunction with ftplugins ; cf. tex-maps.vim and tex-tools.vim on my Web site:
+    http://hermitte.free.fr/vim/tex.php
+
+Note: The version 1.5 is the last one which can be used with Vim 5.x.
