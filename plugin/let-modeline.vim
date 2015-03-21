@@ -1,11 +1,12 @@
 " example -> VIM: let b:toto="foo" g:tata=4 g:egal="t=y".&tw
 " ===========================================================================
+" $Id$
 " File:         let-modeline.vim {{{1
 " Author:       Luc Hermitte <EMAIL:hermitte {at} free {dot} fr>
 "               <URL:http://hermitte.free.fr/vim/>
-" URL: http://hermitte.free.fr/vim/ressources/dollar_VIM/plugin/let-modeline.vim
-" Version:      1.6
-" Last Update:  23rd Mar 2004
+" URL: http://code.google.com/p/lh-vim/source/browse/misc/trunk/plugin/let-modeline.vim
+" Version:      1.9
+" Last Update:  21st Apr 2011 ($Date$)
 "
 " Purpose:                        {{{2
 "       Defines the function : FirstModeLine() that extends the VIM modeline
@@ -64,23 +65,7 @@
 "           Enable to define callback functions when needed.  cf. lhlatex.vim
 "
 " Installation:                   {{{2
-"       (*) Drop the file into your $$/plugin/ or $$/macros/ folder.
-"       (*) Source it from your .vimrc and add the autocommand:
-"             " Loads FirstModeLine()
-"             if !exists('*FirstModeLine')
-"               " :Runtime emules :runtime with VIM 5.x
-"               Runtime plugin/let-modeline.vim
-"             endif
-"             if exists('*FirstModeLine')
-"               aug ALL
-"                 au!
-"                 " To not interfer with Templates loaders
-"                 au BufNewFile * :let b:this_is_new_buffer=1
-"                 " Modeline interpretation
-"                 au BufEnter * :call FirstModeLine()
-"               aug END
-"             endif
-"           
+"       (*) Drop the file into your {rtp}/plugin/ folder.
 " 
 " Remarks:                        {{{2
 "       (*) The only way to call a function is through the callback feature.
@@ -90,6 +75,9 @@
 "           uppercase letters
 "
 " Changes:                        {{{2
+"       v1.9:   @/ is preserved
+"       v1.8:   autocommands moved to the plugin
+"       v1.7:   Optimizations
 "       v1.6:   Support for environment variables.
 "               vim 6.x only
 "               Doesn't check into folded lines anymore
@@ -109,7 +97,7 @@
 " }}}1
 " ===========================================================================
 " Definitions: {{{1
-if exists("g:loaded_let_modeline") | finish | endif
+if exists("g:loaded_let_modeline") && ! exists('g:force_reload_let_modeline') | finish | endif
 let g:loaded_let_modeline = 1
 
 " Internal function dedicated to the recognition of function calls {{{2
@@ -119,21 +107,23 @@ function! s:FoundFunctionCall(value_str)
   return match(str, '(.*)') != -1
 endfunction
 
+
+let s:re_var   = '\s\+\([[:alnum:]:_$]\+\)'
+" beware the comments ending characters
+let s:re_val   = '\(\%(' . "'[^']*'" . '\|"[^"]*"\|[-a-zA-Z0-9:_.&$]\)\+\)$' 
+let s:re_other = '^\(.\{-}\)'
+let s:re_sub   = s:re_other . s:re_var . '\s*=\s*' . s:re_val 
+
 " Internal function dedicated to the parsing of a line {{{2
 function! FML_parse_line(mtch)
   " call confirm('Find:'.a:mtch, '&ok', 1)
   if a:mtch !=""
     let mtch  = a:mtch
-    let re_var   = '\s\+\([[:alnum:]:_$]\+\)'
-    " beware the comments ending characters
-    let re_val   = '\(\%(' . "'[^']*'" . '\|"[^"]*"\|[-a-zA-Z0-9:_.&$]\)\+\)$' 
-    let re_other = '^\(.\{-}\)'
-    let re_sub   = re_other . re_var . '\s*=\s*' . re_val 
     while strlen(mtch) != 0
-      let vari = substitute( mtch, re_sub, '\2', '' )
-      let valu = substitute( mtch, re_sub, '\3', '' )
-      " call confirm('regex: '.re_sub."\nmtch: <<".mtch.">>\nvar: ".vari."\nval: ".valu, '&ok', 1)
-      if (vari !~ '^[[:alnum:]:_$]\+$') || (valu !~ re_val)
+      let vari = substitute( mtch, s:re_sub, '\2', '' )
+      let valu = substitute( mtch, s:re_sub, '\3', '' )
+      " call confirm('regex: '.s:re_sub."\nmtch: <<".mtch.">>\nvar: ".vari."\nval: ".valu, '&ok', 1)
+      if (vari !~ '^[[:alnum:]:_$]\+$') || (valu !~ s:re_val)
         return
       endif
       " Check : no function !
@@ -143,7 +133,7 @@ function! FML_parse_line(mtch)
         echohl None
         return
       endif
-      let mtch = substitute( mtch, re_sub, '\1', '' )
+      let mtch = substitute( mtch, s:re_sub, '\1', '' )
       ""echo vari . " = " . valu . " --- " . mtch . "\n"
       " call confirm('vari: '.vari.' = '.valu." --- " . mtch, '&Ok', 1)
       if exists("b:ModeLine_CallBack")
@@ -157,30 +147,32 @@ function! FML_parse_line(mtch)
 endfunction
 
 " Internal function dedicated searching the matching lines {{{2
+" let s:modeline_pat = '[vV][iI][mM]\d*:\s*let\s*\zs.*$'
+let s:modeline_pat = '[vV][iI][mM]\d*:\s*let\zs.*$'
 function! s:Do_it_on_range(first, last)
-  " let modeline_pat = '[vV][iI][mM]\d*:\s*let\s*\zs.*$'
-  let modeline_pat = '[vV][iI][mM]\d*:\s*let\zs.*$'
   if &verbose >= 2 " {{{
-    echo "\n->"a:first.','.a:last. 'g/'.modeline_pat.
+    echo "\n->"a:first.','.a:last. 'g/'.s:modeline_pat.
           \ '/:call FML_parse_line(matchstr(getline("."),"'.
-          \ escape(modeline_pat, '\\') .'"))'
+          \ escape(s:modeline_pat, '\\') .'"))'
   endif " }}}
   let s:save_fold_enable= &foldenable
   set nofoldenable
   if exists(':try')
     try
-      silent execute a:first.','.a:last. 'g/'.modeline_pat.
-	    \ '/:call FML_parse_line(matchstr(getline("."),"'.
-	    \ escape(modeline_pat, '\\') .'"))'
+      let s = @/
+      silent execute a:first.','.a:last. 'g/'.s:modeline_pat.
+            \ '/:call FML_parse_line(matchstr(getline("."),"'.
+            \ escape(s:modeline_pat, '\\') .'"))'
       " Purge the history for the search pattern just used.
       call histdel('search', -1)
     finally
+      let @/ = s
       let &foldenable = s:save_fold_enable
     endtry
   else " Older versions of Vim
-    silent execute a:first.','.a:last. 'g/'.modeline_pat.
-	  \ '/:call FML_parse_line(matchstr(getline("."),"'.
-	  \ escape(modeline_pat, '\\') .'"))'
+    silent execute a:first.','.a:last. 'g/'.s:modeline_pat.
+          \ '/:call FML_parse_line(matchstr(getline("."),"'.
+          \ escape(s:modeline_pat, '\\') .'"))'
     " Purge the history for the search pattern just used.
     call histdel('search', -1)
     let &foldenable = s:save_fold_enable
@@ -209,6 +201,18 @@ function! FirstModeLine()
 endfunction
 
 " }}}2
+
+" autocommand {{{2
+aug LetModeline
+  au!
+  au BufReadPost * :call FirstModeLine()
+
+  " To not interfere with Templates loaders
+  " au BufNewFile * :let b:this_is_new_buffer=1
+  " Modeline interpretation
+  " au BufEnter * :call FirstModeLine()
+aug END
+
 
 " }}}1
 " ===========================================================================
